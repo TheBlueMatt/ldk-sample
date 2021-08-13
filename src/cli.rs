@@ -712,7 +712,7 @@ fn get_invoice(
 }
 
 fn close_channel(channel_id: [u8; 32], channel_manager: Arc<ChannelManager>) {
-	match channel_manager.close_channel(&channel_id) {
+	match channel_manager.close_channel(&channel_id, None) {
 		Ok(()) => println!("EVENT: initiating channel close"),
 		Err(e) => println!("ERROR: failed to close channel: {:?}", e),
 	}
