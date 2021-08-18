@@ -205,7 +205,7 @@ async fn handle_ldk_events(
 				}
 			}
 		}
-		Event::PaymentFailed { payment_hash, rejected_by_dest } => {
+		Event::PaymentFailed { payment_hash, rejected_by_dest, .. } => {
 			print!(
 				"\nEVENT: Failed to send payment to payment hash {:?}: ",
 				hex_utils::hex_str(&payment_hash.0)
@@ -459,22 +459,19 @@ async fn start_ldk() {
 	// Step 11: Optional: Initialize the NetGraphMsgHandler
 	let genesis = genesis_block(args.network).header.block_hash();
 	let network_graph_path = format!("{}/network_graph", ldk_data_dir.clone());
-	let network_graph = disk::read_network(Path::new(&network_graph_path), genesis);
-	let router = Arc::new(NetGraphMsgHandler::from_net_graph(
+	let network_graph = Arc::new(disk::read_network(Path::new(&network_graph_path), genesis));
+	let router = Arc::new(NetGraphMsgHandler::new(
+		network_graph.clone(),
 		None::<Arc<dyn chain::Access + Send + Sync>>,
 		logger.clone(),
-		network_graph,
 	));
 	let router_persist = Arc::clone(&router);
 	tokio::spawn(async move {
 		let mut interval = tokio::time::interval(Duration::from_secs(600));
 		loop {
 			interval.tick().await;
-			if disk::persist_network(
-				Path::new(&network_graph_path),
-				&*router_persist.network_graph.read().unwrap(),
-			)
-			.is_err()
+			if disk::persist_network(Path::new(&network_graph_path), &*router_persist.network_graph)
+				.is_err()
 			{
 				// Persistence errors here are non-fatal as we can just fetch the routing graph
 				// again later, but they may indicate a disk error which could be fatal elsewhere.
@@ -552,7 +549,7 @@ async fn start_ldk() {
 	let network = args.network;
 	let bitcoind_rpc = bitcoind_client.clone();
 	let handle = tokio::runtime::Handle::current();
-	let event_handler = move |event| {
+	let event_handler = move |event: &Event| {
 		handle.block_on(handle_ldk_events(
 			channel_manager_event_listener.clone(),
 			bitcoind_rpc.clone(),
@@ -560,7 +557,7 @@ async fn start_ldk() {
 			inbound_pmts_for_events.clone(),
 			outbound_pmts_for_events.clone(),
 			network,
-			event,
+			event.clone(),
 		))
 	};
 	// Step 16: Persist ChannelManager
@@ -574,6 +571,7 @@ async fn start_ldk() {
 		chain_monitor.clone(),
 		channel_manager.clone(),
 		peer_manager.clone(),
+		network_graph.clone(),
 		logger.clone(),
 	);
 

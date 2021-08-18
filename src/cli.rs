@@ -12,7 +12,7 @@ use lightning::chain::keysinterface::KeysManager;
 use lightning::ln::features::InvoiceFeatures;
 use lightning::ln::msgs::NetAddress;
 use lightning::ln::{PaymentHash, PaymentSecret};
-use lightning::routing::network_graph::NetGraphMsgHandler;
+use lightning::routing::network_graph::{NetGraphMsgHandler, NetworkGraph};
 use lightning::routing::router;
 use lightning::routing::router::RouteHint;
 use lightning::util::config::{ChannelConfig, ChannelHandshakeLimits, UserConfig};
@@ -137,7 +137,13 @@ pub(crate) fn parse_startup_args() -> Result<LdkUserInfo, ()> {
 pub(crate) async fn poll_for_user_input(
 	peer_manager: Arc<PeerManager>, channel_manager: Arc<ChannelManager>,
 	keys_manager: Arc<KeysManager>,
-	router: Arc<NetGraphMsgHandler<Arc<dyn chain::Access + Send + Sync>, Arc<FilesystemLogger>>>,
+	router: Arc<
+		NetGraphMsgHandler<
+			Arc<NetworkGraph>,
+			Arc<dyn chain::Access + Send + Sync>,
+			Arc<FilesystemLogger>,
+		>,
+	>,
 	inbound_payments: PaymentInfoStorage, outbound_payments: PaymentInfoStorage,
 	ldk_data_dir: String, logger: Arc<FilesystemLogger>, network: Network,
 ) {
@@ -585,17 +591,22 @@ fn send_payment(
 	payee: PublicKey, amt_msat: u64, final_cltv: u32, payment_hash: PaymentHash,
 	payment_secret: Option<PaymentSecret>, payee_features: Option<InvoiceFeatures>,
 	route_hints: Vec<&RouteHint>,
-	router: Arc<NetGraphMsgHandler<Arc<dyn chain::Access + Send + Sync>, Arc<FilesystemLogger>>>,
+	router: Arc<
+		NetGraphMsgHandler<
+			Arc<NetworkGraph>,
+			Arc<dyn chain::Access + Send + Sync>,
+			Arc<FilesystemLogger>,
+		>,
+	>,
 	channel_manager: Arc<ChannelManager>, payment_storage: PaymentInfoStorage,
 	logger: Arc<FilesystemLogger>,
 ) {
-	let network_graph = router.network_graph.read().unwrap();
 	let first_hops = channel_manager.list_usable_channels();
 	let payer_pubkey = channel_manager.get_our_node_id();
 
 	let route = router::get_route(
 		&payer_pubkey,
-		&network_graph,
+		&router.network_graph,
 		&payee,
 		payee_features,
 		Some(&first_hops.iter().collect::<Vec<_>>()),
@@ -633,17 +644,22 @@ fn send_payment(
 
 fn keysend(
 	payee: PublicKey, amt_msat: u64,
-	router: Arc<NetGraphMsgHandler<Arc<dyn chain::Access + Send + Sync>, Arc<FilesystemLogger>>>,
+	router: Arc<
+		NetGraphMsgHandler<
+			Arc<NetworkGraph>,
+			Arc<dyn chain::Access + Send + Sync>,
+			Arc<FilesystemLogger>,
+		>,
+	>,
 	channel_manager: Arc<ChannelManager>, payment_storage: PaymentInfoStorage,
 	logger: Arc<FilesystemLogger>,
 ) {
-	let network_graph = router.network_graph.read().unwrap();
 	let first_hops = channel_manager.list_usable_channels();
 	let payer_pubkey = channel_manager.get_our_node_id();
 
 	let route = match router::get_keysend_route(
 		&payer_pubkey,
-		&network_graph,
+		&router.network_graph,
 		&payee,
 		Some(&first_hops.iter().collect::<Vec<_>>()),
 		&vec![],
