@@ -40,8 +40,9 @@ use lightning::types::payment::{PaymentHash, PaymentPreimage, PaymentSecret};
 use lightning::util::config::UserConfig;
 use lightning::util::hash_tables::hash_map::Entry;
 use lightning::util::hash_tables::HashMap;
+use lightning::util::native_async::FutureSpawner;
 use lightning::util::persist::{
-	self, KVStore, MonitorUpdatingPersister, OUTPUT_SWEEPER_PERSISTENCE_KEY,
+	self, KVStore, MonitorUpdatingPersisterAsync, OUTPUT_SWEEPER_PERSISTENCE_KEY,
 	OUTPUT_SWEEPER_PERSISTENCE_PRIMARY_NAMESPACE, OUTPUT_SWEEPER_PERSISTENCE_SECONDARY_NAMESPACE,
 };
 use lightning::util::ser::{Readable, ReadableArgs, Writeable, Writer};
@@ -59,6 +60,7 @@ use std::convert::TryInto;
 use std::fmt;
 use std::fs;
 use std::fs::File;
+use std::future::Future;
 use std::io::{BufReader, Write};
 use std::net::ToSocketAddrs;
 use std::path::Path;
@@ -139,15 +141,14 @@ type ChainMonitor = chainmonitor::ChainMonitor<
 	Arc<BitcoindClient>,
 	Arc<BitcoindClient>,
 	Arc<FilesystemLogger>,
-	Arc<
-		MonitorUpdatingPersister<
-			Arc<FilesystemStore>,
-			Arc<FilesystemLogger>,
-			Arc<KeysManager>,
-			Arc<KeysManager>,
-			Arc<BitcoindClient>,
-			Arc<BitcoindClient>,
-		>,
+	chainmonitor::AsyncPersister<
+		Arc<FilesystemStore>,
+		TokioSpawner,
+		Arc<FilesystemLogger>,
+		Arc<KeysManager>,
+		Arc<KeysManager>,
+		Arc<BitcoindClient>,
+		Arc<BitcoindClient>,
 	>,
 	Arc<KeysManager>,
 >;
@@ -209,6 +210,14 @@ pub(crate) type OutputSweeper = ldk_sweep::OutputSweeper<
 
 // Needed due to rust-lang/rust#63033.
 struct OutputSweeperWrapper(Arc<OutputSweeper>);
+
+// Trivially bridge the LDK FutureSpawner trait to tokio
+struct TokioSpawner;
+impl FutureSpawner for TokioSpawner{
+	fn spawn<T: Future<Output = ()> + Send + 'static>(&self, future: T) {
+		tokio::spawn(future);
+	}
+}
 
 fn handle_ldk_events<'a>(
 	channel_manager: Arc<ChannelManager>, bitcoind_client: &'a BitcoindClient,
@@ -679,35 +688,36 @@ async fn start_ldk() {
 
 	// Step 5: Initialize Persistence
 	let fs_store = Arc::new(FilesystemStore::new(ldk_data_dir.clone().into()));
-	let persister = Arc::new(MonitorUpdatingPersister::new(
+	let persister = MonitorUpdatingPersisterAsync::new(
 		Arc::clone(&fs_store),
+		TokioSpawner,
 		Arc::clone(&logger),
 		1000,
 		Arc::clone(&keys_manager),
 		Arc::clone(&keys_manager),
 		Arc::clone(&bitcoind_client),
 		Arc::clone(&bitcoind_client),
-	));
+	);
 	// Alternatively, you can use the `FilesystemStore` as a `Persist` directly, at the cost of
 	// larger `ChannelMonitor` update writes (but no deletion or cleanup):
 	//let persister = Arc::clone(&fs_store);
 
-	// Step 6: Initialize the ChainMonitor
-	let chain_monitor: Arc<ChainMonitor> = Arc::new(chainmonitor::ChainMonitor::new(
+	// Step 6: Read ChannelMonitor state from disk
+	let mut channelmonitors = persister.read_all_channel_monitors_with_updates().await.unwrap();
+	// If you are using the `FilesystemStore` as a `Persist` directly, use
+	// `lightning::util::persist::read_channel_monitors` like this:
+	// read_channel_monitors(Arc::clone(&persister), Arc::clone(&keys_manager), Arc::clone(&keys_manager)).unwrap();
+
+	// Step 7: Initialize the ChainMonitor
+	let chain_monitor: Arc<ChainMonitor> = Arc::new(chainmonitor::ChainMonitor::new_async_beta(
 		None,
 		Arc::clone(&broadcaster),
 		Arc::clone(&logger),
 		Arc::clone(&fee_estimator),
-		Arc::clone(&persister),
+		persister,
 		Arc::clone(&keys_manager),
 		keys_manager.get_peer_storage_key(),
 	));
-
-	// Step 7: Read ChannelMonitor state from disk
-	let mut channelmonitors = persister.read_all_channel_monitors_with_updates().unwrap();
-	// If you are using the `FilesystemStore` as a `Persist` directly, use
-	// `lightning::util::persist::read_channel_monitors` like this:
-	//read_channel_monitors(Arc::clone(&persister), Arc::clone(&keys_manager), Arc::clone(&keys_manager)).unwrap();
 
 	// Step 8: Poll for the best chain tip, which may be used by the channel manager & spv client
 	let polled_chain_tip = init::validate_best_block_header(bitcoind_client.as_ref())
@@ -870,6 +880,8 @@ async fn start_ldk() {
 	// Step 14: Give ChannelMonitors to ChainMonitor
 	for (_, (channel_monitor, _, _, _), _) in chain_listener_channel_monitors {
 		let channel_id = channel_monitor.channel_id();
+		// Note that this may not return `Completed` for ChannelMonitors which were last written by
+		// a version of LDK prior to 0.1.
 		assert_eq!(
 			chain_monitor.load_existing_monitor(channel_id, channel_monitor),
 			Ok(ChannelMonitorUpdateStatus::Completed)
