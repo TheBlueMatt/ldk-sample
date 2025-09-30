@@ -871,7 +871,7 @@ async fn start_ldk() {
 	for (_, (channel_monitor, _, _, _), _) in chain_listener_channel_monitors {
 		let channel_id = channel_monitor.channel_id();
 		assert_eq!(
-			chain_monitor.watch_channel(channel_id, channel_monitor),
+			chain_monitor.load_existing_monitor(channel_id, channel_monitor),
 			Ok(ChannelMonitorUpdateStatus::Completed)
 		);
 	}
