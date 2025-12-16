@@ -1102,13 +1102,12 @@ async fn start_ldk() {
 				let id = NodeId::from_pubkey(&node_id);
 				let addrs = if let Some(node) = graph_connect.read_only().node(&id) {
 					if let Some(ann) = &node.announcement_info {
-						ann.addresses().iter().filter_map(|addr| {
-							match addr {
-								lightning::ln::msgs::SocketAddress::OnionV2(_) => None,
-								lightning::ln::msgs::SocketAddress::OnionV3 { .. } => None,
-								_ => Some(addr.clone()),
-							}
-						}).collect::<Vec<_>>()
+						let non_onion = |addr| match addr {
+							&lightning::ln::msgs::SocketAddress::OnionV2(_) => None,
+							&lightning::ln::msgs::SocketAddress::OnionV3 { .. } => None,
+							_ => Some(addr.clone()),
+						};
+						ann.addresses().iter().filter_map(non_onion).collect::<Vec<_>>()
 					} else {
 						Vec::new()
 					}
@@ -1117,7 +1116,9 @@ async fn start_ldk() {
 				};
 				for addr in addrs {
 					let sockaddrs = addr.to_socket_addrs();
-					if sockaddrs.is_err() { continue; }
+					if sockaddrs.is_err() {
+						continue;
+					}
 					for sockaddr in sockaddrs.unwrap() {
 						let _ =
 							cli::do_connect_peer(node_id, sockaddr, Arc::clone(&connect_pm)).await;
