@@ -625,9 +625,7 @@ fn node_info(
 			ref balance_candidates,
 			confirmed_balance_candidate_index,
 			..
-		} => {
-			balance_candidates[confirmed_balance_candidate_index].transaction_fee_satoshis
-		},
+		} => balance_candidates[confirmed_balance_candidate_index].transaction_fee_satoshis,
 		_ => 0,
 	};
 	let close_fees_sats = balances.iter().map(close_fees_map).sum::<u64>();

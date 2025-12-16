@@ -253,13 +253,18 @@ fn handle_ldk_events<'a>(
 				let funded_tx = bitcoind_client.fund_raw_transaction(raw_tx).await;
 
 				// Sign the final funding transaction and give it to LDK, who will eventually broadcast it.
-				let signed_tx = bitcoind_client.sign_raw_transaction_with_wallet(funded_tx.hex).await;
+				let signed_tx =
+					bitcoind_client.sign_raw_transaction_with_wallet(funded_tx.hex).await;
 				assert_eq!(signed_tx.complete, true);
 				let final_tx: Transaction =
 					encode::deserialize(&hex_utils::to_vec(&signed_tx.hex).unwrap()).unwrap();
 				// Give the funding transaction back to LDK for opening the channel.
 				if channel_manager
-					.funding_transaction_generated(temporary_channel_id, counterparty_node_id, final_tx)
+					.funding_transaction_generated(
+						temporary_channel_id,
+						counterparty_node_id,
+						final_tx,
+					)
 					.is_err()
 				{
 					println!(
@@ -279,9 +284,13 @@ fn handle_ldk_events<'a>(
 				print!("> ");
 				std::io::stdout().flush().unwrap();
 				let payment_preimage = match purpose {
-					PaymentPurpose::Bolt11InvoicePayment { payment_preimage, .. } => payment_preimage,
+					PaymentPurpose::Bolt11InvoicePayment { payment_preimage, .. } => {
+						payment_preimage
+					},
 					PaymentPurpose::Bolt12OfferPayment { payment_preimage, .. } => payment_preimage,
-					PaymentPurpose::Bolt12RefundPayment { payment_preimage, .. } => payment_preimage,
+					PaymentPurpose::Bolt12RefundPayment { payment_preimage, .. } => {
+						payment_preimage
+					},
 					PaymentPurpose::SpontaneousPayment(preimage) => Some(preimage),
 				};
 				channel_manager.claim_funds(payment_preimage.unwrap());
@@ -295,13 +304,19 @@ fn handle_ldk_events<'a>(
 				std::io::stdout().flush().unwrap();
 				let (payment_preimage, payment_secret) = match purpose {
 					PaymentPurpose::Bolt11InvoicePayment {
-						payment_preimage, payment_secret, ..
+						payment_preimage,
+						payment_secret,
+						..
 					} => (payment_preimage, Some(payment_secret)),
-					PaymentPurpose::Bolt12OfferPayment { payment_preimage, payment_secret, .. } => {
+					PaymentPurpose::Bolt12OfferPayment {
+						payment_preimage, payment_secret, ..
+					} => {
 						(payment_preimage, Some(payment_secret))
 					},
 					PaymentPurpose::Bolt12RefundPayment {
-						payment_preimage, payment_secret, ..
+						payment_preimage,
+						payment_secret,
+						..
 					} => (payment_preimage, Some(payment_secret)),
 					PaymentPurpose::SpontaneousPayment(preimage) => (Some(preimage), None),
 				};
