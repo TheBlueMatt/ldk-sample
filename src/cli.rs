@@ -205,7 +205,7 @@ pub(crate) async fn poll_for_user_input(
 
 							let line = match input.next_line().await {
 								Ok(Some(l)) => l,
-								Err(e) =>  {
+								Err(e) => {
 									println!("ERROR: {}", e);
 									break 'read_command;
 								},
@@ -318,13 +318,16 @@ pub(crate) async fn poll_for_user_input(
 						}
 					} else {
 						match Bolt11Invoice::from_str(invoice_str) {
-							Ok(invoice) => send_payment(
-								&channel_manager,
-								&invoice,
-								user_provided_amt,
-								&outbound_payments,
-								&*fs_store,
-							).await,
+							Ok(invoice) => {
+								send_payment(
+									&channel_manager,
+									&invoice,
+									user_provided_amt,
+									&outbound_payments,
+									&*fs_store,
+								)
+								.await
+							},
 							Err(e) => {
 								println!("ERROR: invalid invoice: {:?}", e);
 							},
@@ -366,7 +369,8 @@ pub(crate) async fn poll_for_user_input(
 						&*keys_manager,
 						&outbound_payments,
 						&*fs_store,
-					).await;
+					)
+					.await;
 				},
 				"getoffer" => {
 					let offer_builder = channel_manager.create_offer_builder();
@@ -429,8 +433,7 @@ pub(crate) async fn poll_for_user_input(
 							&channel_manager,
 							expiry_secs.unwrap(),
 						);
-						fs_store
-							.write("", "", INBOUND_PAYMENTS_FNAME, inbound_payments.encode())
+						fs_store.write("", "", INBOUND_PAYMENTS_FNAME, inbound_payments.encode())
 					};
 					write_future.await.unwrap();
 				},
@@ -891,7 +894,8 @@ async fn send_payment(
 			print!("> ");
 			let write_future = {
 				let mut outbound_payments = outbound_payments.lock().unwrap();
-				outbound_payments.payments.get_mut(&payment_id).unwrap().status = HTLCStatus::Failed;
+				outbound_payments.payments.get_mut(&payment_id).unwrap().status =
+					HTLCStatus::Failed;
 				fs_store.write("", "", OUTBOUND_PAYMENTS_FNAME, outbound_payments.encode())
 			};
 			write_future.await.unwrap();
@@ -940,7 +944,8 @@ async fn keysend<E: EntropySource>(
 			print!("> ");
 			let write_future = {
 				let mut outbound_payments = outbound_payments.lock().unwrap();
-				outbound_payments.payments.get_mut(&payment_id).unwrap().status = HTLCStatus::Failed;
+				outbound_payments.payments.get_mut(&payment_id).unwrap().status =
+					HTLCStatus::Failed;
 				fs_store.write("", "", OUTBOUND_PAYMENTS_FNAME, outbound_payments.encode())
 			};
 			write_future.await.unwrap();

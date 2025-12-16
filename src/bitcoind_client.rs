@@ -364,9 +364,7 @@ impl BroadcasterInterface for BitcoindClient {
 
 impl ChangeDestinationSource for BitcoindClient {
 	fn get_change_destination_script<'a>(&'a self) -> AsyncResult<'a, ScriptBuf, ()> {
-		Box::pin(async move {
-			Ok(self.get_new_address().await.script_pubkey())
-		})
+		Box::pin(async move { Ok(self.get_new_address().await.script_pubkey()) })
 	}
 }
 
@@ -407,9 +405,7 @@ impl WalletSource for BitcoindClient {
 	}
 
 	fn get_change_script<'a>(&'a self) -> AsyncResult<'a, ScriptBuf, ()> {
-		Box::pin(async move {
-			Ok(self.get_new_address().await.script_pubkey())
-		})
+		Box::pin(async move { Ok(self.get_new_address().await.script_pubkey()) })
 	}
 
 	fn sign_psbt<'a>(&'a self, tx: Psbt) -> AsyncResult<'a, Transaction, ()> {

@@ -308,9 +308,7 @@ fn handle_ldk_events<'a>(
 					} => (payment_preimage, Some(payment_secret)),
 					PaymentPurpose::Bolt12OfferPayment {
 						payment_preimage, payment_secret, ..
-					} => {
-						(payment_preimage, Some(payment_secret))
-					},
+					} => (payment_preimage, Some(payment_secret)),
 					PaymentPurpose::Bolt12RefundPayment {
 						payment_preimage,
 						payment_secret,
@@ -341,7 +339,11 @@ fn handle_ldk_events<'a>(
 				write_future.await.unwrap();
 			},
 			Event::PaymentSent {
-				payment_preimage, payment_hash, fee_paid_msat, payment_id, ..
+				payment_preimage,
+				payment_hash,
+				fee_paid_msat,
+				payment_id,
+				..
 			} => {
 				let write_future = {
 					let mut outbound = outbound_payments.lock().unwrap();
@@ -370,7 +372,9 @@ fn handle_ldk_events<'a>(
 				write_future.await.unwrap();
 			},
 			Event::OpenChannelRequest {
-				ref temporary_channel_id, ref counterparty_node_id, ..
+				ref temporary_channel_id,
+				ref counterparty_node_id,
+				..
 			} => {
 				let mut random_bytes = [0u8; 16];
 				random_bytes.copy_from_slice(&keys_manager.get_secure_random_bytes()[..16]);
@@ -409,13 +413,21 @@ fn handle_ldk_events<'a>(
 						"\nEVENT: Failed to send payment to payment ID {}, payment hash {}: {:?}",
 						payment_id,
 						hash,
-						if let Some(r) = reason { r } else { PaymentFailureReason::RetriesExhausted }
+						if let Some(r) = reason {
+							r
+						} else {
+							PaymentFailureReason::RetriesExhausted
+						}
 					);
 				} else {
 					print!(
 						"\nEVENT: Failed fetch invoice for payment ID {}: {:?}",
 						payment_id,
-						if let Some(r) = reason { r } else { PaymentFailureReason::RetriesExhausted }
+						if let Some(r) = reason {
+							r
+						} else {
+							PaymentFailureReason::RetriesExhausted
+						}
 					);
 				}
 				print!("> ");
@@ -448,7 +460,8 @@ fn handle_ldk_events<'a>(
 
 				let node_str = |channel_id: &Option<ChannelId>| match channel_id {
 					None => String::new(),
-					Some(channel_id) => match channels.iter().find(|c| c.channel_id == *channel_id) {
+					Some(channel_id) => match channels.iter().find(|c| c.channel_id == *channel_id)
+					{
 						None => String::new(),
 						Some(channel) => {
 							match nodes.get(&NodeId::from_pubkey(&channel.counterparty.node_id)) {
@@ -468,8 +481,11 @@ fn handle_ldk_events<'a>(
 						.map(|channel_id| format!(" with channel {}", channel_id))
 						.unwrap_or_default()
 				};
-				let from_prev_str =
-					format!(" from {}{}", node_str(&prev_channel_id), channel_str(&prev_channel_id));
+				let from_prev_str = format!(
+					" from {}{}",
+					node_str(&prev_channel_id),
+					channel_str(&prev_channel_id),
+				);
 				let to_next_str =
 					format!(" to {}{}", node_str(&next_channel_id), channel_str(&next_channel_id));
 
@@ -499,7 +515,11 @@ fn handle_ldk_events<'a>(
 			},
 			Event::HTLCHandlingFailed { .. } => {},
 			Event::SpendableOutputs { outputs, channel_id } => {
-				output_sweeper.0.track_spendable_outputs(outputs, channel_id, false, None).await.unwrap();
+				output_sweeper
+					.0
+					.track_spendable_outputs(outputs, channel_id, false, None)
+					.await
+					.unwrap();
 			},
 			Event::ChannelPending { channel_id, counterparty_node_id, .. } => {
 				println!(
@@ -510,11 +530,7 @@ fn handle_ldk_events<'a>(
 				print!("> ");
 				std::io::stdout().flush().unwrap();
 			},
-			Event::ChannelReady {
-				ref channel_id,
-				ref counterparty_node_id,
-				..
-			} => {
+			Event::ChannelReady { ref channel_id, ref counterparty_node_id, .. } => {
 				println!(
 					"\nEVENT: Channel {} with peer {} is ready to be used!",
 					channel_id,
@@ -778,11 +794,14 @@ async fn start_ldk() {
 	};
 
 	// Step 12: Initialize the OutputSweeper.
-	let (sweeper_best_block, output_sweeper) = match fs_store.read(
-		OUTPUT_SWEEPER_PERSISTENCE_PRIMARY_NAMESPACE,
-		OUTPUT_SWEEPER_PERSISTENCE_SECONDARY_NAMESPACE,
-		OUTPUT_SWEEPER_PERSISTENCE_KEY,
-	).await {
+	let (sweeper_best_block, output_sweeper) = match fs_store
+		.read(
+			OUTPUT_SWEEPER_PERSISTENCE_PRIMARY_NAMESPACE,
+			OUTPUT_SWEEPER_PERSISTENCE_SECONDARY_NAMESPACE,
+			OUTPUT_SWEEPER_PERSISTENCE_KEY,
+		)
+		.await
+	{
 		Err(e) if e.kind() == io::ErrorKind::NotFound => {
 			let sweeper = OutputSweeper::new(
 				channel_manager.current_best_block(),
