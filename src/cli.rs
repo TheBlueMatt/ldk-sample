@@ -111,11 +111,7 @@ pub(crate) async fn poll_for_user_input(
 								},
 							};
 
-						if connect_peer_if_necessary(
-							pubkey,
-							peer_addr,
-							peer_manager.clone(),
-						)
+						if connect_peer_if_necessary(pubkey, peer_addr, peer_manager.clone())
 							.await
 							.is_err()
 						{
@@ -438,11 +434,7 @@ pub(crate) async fn poll_for_user_input(
 								continue;
 							},
 						};
-					if connect_peer_if_necessary(
-						pubkey,
-						peer_addr,
-						peer_manager.clone(),
-					)
+					if connect_peer_if_necessary(pubkey, peer_addr, peer_manager.clone())
 						.await
 						.is_ok()
 					{
