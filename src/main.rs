@@ -48,10 +48,8 @@ use lightning::util::ser::{Readable, ReadableArgs, Writeable, Writer};
 use lightning::util::sweep as ldk_sweep;
 use lightning::{chain, impl_writeable_tlv_based, impl_writeable_tlv_based_enum};
 use lightning_background_processor::{process_events_async, GossipSync, NO_LIQUIDITY_MANAGER};
-use lightning_block_sync::init;
-use lightning_block_sync::poll;
-use lightning_block_sync::SpvClient;
-use lightning_block_sync::UnboundedCache;
+use lightning_block_sync::gossip::TokioSpawner;
+use lightning_block_sync::{init, poll, SpvClient, UnboundedCache};
 use lightning_dns_resolver::OMDomainResolver;
 use lightning_net_tokio::SocketDescriptor;
 use lightning_persister::fs_store::FilesystemStore;
@@ -155,7 +153,7 @@ type ChainMonitor = chainmonitor::ChainMonitor<
 >;
 
 pub(crate) type GossipVerifier = lightning_block_sync::gossip::GossipVerifier<
-	lightning_block_sync::gossip::TokioSpawner,
+	TokioSpawner,
 	Arc<lightning_block_sync::rpc::RpcClient>,
 	Arc<FilesystemLogger>,
 >;
@@ -925,7 +923,7 @@ async fn start_ldk() {
 	// Install a GossipVerifier in in the P2PGossipSync
 	let utxo_lookup = GossipVerifier::new(
 		Arc::clone(&bitcoind_client.bitcoind_rpc_client),
-		lightning_block_sync::gossip::TokioSpawner,
+		TokioSpawner,
 		Arc::clone(&gossip_sync),
 		Arc::clone(&peer_manager),
 	);
