@@ -40,7 +40,6 @@ use lightning::types::payment::{PaymentHash, PaymentPreimage, PaymentSecret};
 use lightning::util::config::UserConfig;
 use lightning::util::hash_tables::hash_map::Entry;
 use lightning::util::hash_tables::HashMap;
-use lightning::util::native_async::FutureSpawner;
 use lightning::util::persist::{
 	self, KVStore, MonitorUpdatingPersisterAsync, OUTPUT_SWEEPER_PERSISTENCE_KEY,
 	OUTPUT_SWEEPER_PERSISTENCE_PRIMARY_NAMESPACE, OUTPUT_SWEEPER_PERSISTENCE_SECONDARY_NAMESPACE,
@@ -60,7 +59,6 @@ use std::convert::TryInto;
 use std::fmt;
 use std::fs;
 use std::fs::File;
-use std::future::Future;
 use std::io::{BufReader, Write};
 use std::net::ToSocketAddrs;
 use std::path::Path;
@@ -210,14 +208,6 @@ pub(crate) type OutputSweeper = ldk_sweep::OutputSweeper<
 
 // Needed due to rust-lang/rust#63033.
 struct OutputSweeperWrapper(Arc<OutputSweeper>);
-
-// Trivially bridge the LDK FutureSpawner trait to tokio
-struct TokioSpawner;
-impl FutureSpawner for TokioSpawner{
-	fn spawn<T: Future<Output = ()> + Send + 'static>(&self, future: T) {
-		tokio::spawn(future);
-	}
-}
 
 fn handle_ldk_events<'a>(
 	channel_manager: Arc<ChannelManager>, bitcoind_client: &'a BitcoindClient,
