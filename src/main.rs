@@ -1163,18 +1163,16 @@ async fn start_ldk() {
 	let cli_chain_monitor = Arc::clone(&chain_monitor);
 	let cli_fs_store = Arc::clone(&fs_store);
 	let cli_peer_manager = Arc::clone(&peer_manager);
-	let cli_poll = tokio::task::spawn(
-		cli::poll_for_user_input(
-			cli_peer_manager,
-			cli_channel_manager,
-			cli_chain_monitor,
-			keys_manager,
-			network_graph,
-			inbound_payments,
-			outbound_payments,
-			cli_fs_store,
-		)
-	);
+	let cli_poll = tokio::task::spawn(cli::poll_for_user_input(
+		cli_peer_manager,
+		cli_channel_manager,
+		cli_chain_monitor,
+		keys_manager,
+		network_graph,
+		inbound_payments,
+		outbound_payments,
+		cli_fs_store,
+	));
 
 	// Exit if either CLI polling exits or the background processor exits (which shouldn't happen
 	// unless we fail to write to the filesystem).
